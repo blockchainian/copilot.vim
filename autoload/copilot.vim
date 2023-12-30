@@ -12,6 +12,7 @@ let s:has_ghost_text = s:has_nvim_ghost_text || s:has_vim_ghost_text
 
 let s:hlgroup = 'CopilotSuggestion'
 let s:annot_hlgroup = 'CopilotAnnotation'
+let s:cursor = {}
 
 if s:has_vim_ghost_text && empty(prop_type_get(s:hlgroup))
   call prop_type_add(s:hlgroup, {'highlight': s:hlgroup})
@@ -196,9 +197,6 @@ function! copilot#Enabled() abort
 endfunction
 
 function! copilot#Complete(...) abort
-  if exists('g:_copilot_timer')
-    call timer_stop(remove(g:, '_copilot_timer'))
-  endif
   let params = copilot#doc#Params()
   if !exists('b:_copilot.params') || b:_copilot.params !=# params
     let b:_copilot = {'params': params, 'first':
@@ -380,9 +378,10 @@ function! s:UpdatePreview() abort
 endfunction
 
 function! s:HandleTriggerResult(result) abort
-  if !exists('b:_copilot')
+  if !exists('b:_copilot') || !exists('g:_copilot_timer')
     return
   endif
+  unlet! g:_copilot_timer
   let b:_copilot.suggestions = get(a:result, 'completions', [])
   let b:_copilot.choice = 0
   let b:_copilot.shown_choices = {}
@@ -400,7 +399,6 @@ endfunction
 
 function! s:Trigger(bufnr, timer) abort
   let timer = get(g:, '_copilot_timer', -1)
-  unlet! g:_copilot_timer
   if a:bufnr !=# bufnr('') || a:timer isnot# timer || mode() !=# 'i'
     return
   endif
@@ -439,6 +437,13 @@ function! copilot#OnCompleteChanged() abort
 endfunction
 
 function! copilot#OnCursorMovedI() abort
+  let bufnr = bufnr('')
+  let line = line('.')
+  let col = col('.')
+  if exists('s:cursor.bufnr') && s:cursor.bufnr == bufnr && s:cursor.line == line && s:cursor.col == col
+    return
+  endif
+  let s:cursor = {'bufnr': bufnr, 'line': line, 'col': col}
   return copilot#Schedule()
 endfunction
 
